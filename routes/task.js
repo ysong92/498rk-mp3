@@ -28,12 +28,34 @@ module.exports = function (router) {
         });
 
         promise.then(function(task){
-            ret.data = task;
-            console.log(ret);
-            res.json(200, ret);
+            console.log(task);
+            if (task == null){
+                throw new Error("Invalid task ID");
+            }else{
+                ret.data = task;
+                ret.message = "OK"
+                console.log(ret);
+                res.json(200, ret);
+                return router;
+            }
+            
         }).catch(function(err){
-            console.log("error;");
+            if (err.message == "Invalid task ID"){
+                ret.message = "ERROR";
+                ret.data = "Invalid task ID"
+                res.json(404, ret);
+                return router;
+            }
+            else{
+                ret.message = "ERROR";
+                ret.data = "Server Bugs"
+                res.json(404, ret);
+                return router;
+
+            }
+           
         })
+        return router;
 	});
 
 	// PUT

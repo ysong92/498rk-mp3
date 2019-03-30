@@ -10,28 +10,41 @@ module.exports = function (router) {
 
     // POST
     userRoute.post(function (req, res){
-        var date = new Date();
-        var params = {
-            'name':req.param('name'),
-            "description":req.param('description'),
-            "deadline":req.param('deadline'),
-            "completed":req.param('completed'),
-            "assignedUser":req.param('assignedUser'),
-            "assignedUserName":req.param('assignedUserName'),
-            "dateCreated":date
-        }
-        //validation
-        if (typeof params.name === 'undefined' || typeof params.deadline === 'undefined'){
-        	ret.message = "ERROR";
-        	ret.data = "Undefined task name or deadline";
-        	res.json(500, ret);
-        	return router;
-        }
+        var promise = new Promise(function(resolve, reject){
+            var date = new Date();
+            var params = {
+                'name':req.param('name'),
+                "description":req.param('description'),
+                "deadline":req.param('deadline'),
+                "completed":req.param('completed'),
+                "assignedUser":req.param('assignedUser'),
+                "assignedUserName":req.param('assignedUserName'),
+                "dateCreated":date
+            }
 
-        var new_task = new Task(params);
-        new_task.save(function(err, new_user){
-            if (err) {console.log(err);}
-            else{res.json(201, new_task);}
+            //validation
+            if (typeof params.name === 'undefined' || typeof params.deadline === 'undefined'){
+                ret.message = "ERROR";
+                ret.data = "Undefined task name or deadline";
+                res.json(400, ret);
+                return router;
+            }
+    
+            var new_task = new Task(params);
+            new_task.save(function(err, new_task){
+                if (err) {console.log(err);}
+                else{resolve(new_task);}
+            });
+        });
+
+        promise.then(function(new_task){
+            ret.data = new_task;
+            res.status(201).json(ret);
+        }).catch(function(err){
+            ret.message = "ERROR";
+            ret.data = "Sorry! Internal Server Error";
+            res.status(500).json(ret);
+            console.log(err);
         });
     });
 

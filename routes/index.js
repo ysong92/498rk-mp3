@@ -15,6 +15,7 @@ module.exports = function (app, router) {
 	const uri = "mongodb+srv://ysong92:Sasuke007@cluster0-yk3a8.mongodb.net/498rk-mp3";
 	mongoose.connect(uri, { useNewUrlParser: true });
 	var db = mongoose.connection;
+	mongoose.set('useFindAndModify', false);
 	// console.log(db);
 };
 

@@ -16,10 +16,72 @@ module.exports = function (router) {
             "pendingTasks":req.param('pendingTasks'),
             "dateCreated":date,
         }
-        var new_user = new User(params);
-        new_user.save(function(err, new_user){
-            if (err) {console.log(err);}
-            else{res.json(201, new_user);}
+
+        //validation
+        if (typeof params.name === 'undefined' || typeof params.email === 'undefined'){
+            ret.message = "ERROR";
+            ret.data = "Undefined user name or email";
+            res.json(400, ret);
+            return router;
+        }
+
+        // avoid same email
+        var same_email_promise = new Promise(function(resolve, reject){
+            User.findOne({email:params['email']}, function(err, users) {
+                if (err){
+                    ret.message = "ERROR";
+                    ret.data = "DB Error";
+                    res.json(500, ret);
+                    return router;
+                }else{
+                    resolve(users);  
+                }  
+            });
+        });
+
+        //promie all
+        same_email_promise.then(response => {
+            if (response!==null){
+                throw new Error("same_email");
+            }
+        }).then(response=>{
+            //save new user
+            var promise = new Promise(function(resolve, reject){
+                var new_user = new User(params);
+                new_user.save(function(err, new_user){
+                    if (err) {
+                        ret.message = "ERROR";
+                        ret.data = "DB Error";
+                        res.json(500, ret);
+                        return router;
+                    }
+                    else{
+                        resolve(new_user);
+                        console.log("new user");
+                    }
+                });
+            });
+            promise.then(response => {
+                ret.data = response;
+                ret.message = "OK";
+                res.status(201).json(ret);
+                return router;
+            });
+
+        }).catch(function(err){
+            console.log(err.message);
+            if (err.message === "same_email"){
+                ret.message = "ERROR";
+                ret.data = "Used Email";
+                res.status(400).json(ret);
+                return router;
+            }
+            else{
+                ret.message = "ERROR";
+                ret.data = "Server Error";
+                res.json(500, ret);
+                return router;
+            }
         });
     });
 
@@ -55,13 +117,15 @@ module.exports = function (router) {
             var count = JSON.parse(req.query.count);
         }
 
-       
-     
         // users get
         var promise = new Promise(function(resolve, reject){
             User.find(filter, function(err, users) {
                 if (err){
-                    console.log("error;"+err);
+                    console.log(err);
+                    ret.message = "ERROR";
+                    ret.data = "DB Error";
+                    res.json(500, ret);
+                    return router;
                 }else{
                     resolve(users);  
                 }  
@@ -73,12 +137,15 @@ module.exports = function (router) {
             if (count){
                 ret.data = users.length;
             }
-            console.log(ret);
-            res.json(200, ret);
-            // res.send(ret); 
-
+            ret.message = "OK";
+            res.status(200).json(ret);
         }).catch(function(err){
-            console.log("error;");
+            console.log(err);
+            ret.message = "ERROR";
+            ret.data = "Server Error";
+            res.json(500, ret);
+            return router;
+            res.status(404).json("error");
         })
 	});
     return router;
