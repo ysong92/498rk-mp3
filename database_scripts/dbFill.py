@@ -91,6 +91,7 @@ def main(argv):
         response = conn.getresponse()
         data = response.read()
         d = json.loads(data)
+        print(d)
 
         # Store the users id
         userIDs.append(str(d['data']['_id']))
