@@ -47,7 +47,7 @@ module.exports = function (router) {
 	});
 
 	// PUT
-	userRoute.put(function (req, res) {
+	userRoute.put(async function (req, res) {
         //  handle query
         var id = req.params.id;
         var date = new Date();
@@ -70,76 +70,65 @@ module.exports = function (router) {
         if (typeof params.pendingTasks === 'undefined'){
             params.pendingTasks = [];
         }
-        
-        // avoid same email
-        var same_email_promise = new Promise(function(resolve, reject){
-            User.find({email:params['email']}, function(err, users) {
-                if (err){
-                    ret.message = "ERROR";
-                    ret.data = "DB Error";
-                    res.json(500, ret);
-                    return router;
-                }else{
-                    resolve(users);  
-                }  
-            });
-        });
 
-        //promie all
-        same_email_promise.then(responses => {
-            responses.forEach(function(user){
-                if (user._id.toString()!=id){
-                    console.log(user._id.toString(), id);
-                    throw new Error("same_email");
-                }
-            })
-            if (responses.length == 0){throw new Error("invalid_user");}
-
-        }).then(res=>{
-            //set old tasks to unassigned
-            Task.updateMany({"assignedUser":id}, {"assignedUser":'', "assignedUserName":"unassigned"}).exec();
-        }).then(response=>{
-            var promise = new Promise(function(resolve, reject){
-                User.findOneAndReplace({"_id":id}, params, function(err, user) {
-                    if (err) {
-                        ret.message = "ERROR";
-                        ret.data = "DB Error";
-                        res.json(500, ret);
-                        return router;
-                    }
-                    else{
-                        user_name = user.name;
-                        resolve(user);
-                    }
+        // invalid user id
+        var user = await User.findById(id).catch(error=>{console.log(user);});
+        if(user == null){
+            res.status(400).send({
+                    "message":"ERROR",
+                    "data":"Invalid user id"
                 });
-            });
-            promise.then(user=>{
-                Task.updateMany({"_id":{$in:params.pendingTasks}}, {$set:{"assignedUser":id, "assignedUserName":user_name}}).exec();
-            }).then(response => {
-                ret.data = "User Updated";
-                ret.message = "OK";
-                res.status(201).json(ret);
                 return router;
-            }).catch(function(err){console.log(err);})
-
-        }).catch(function(err){
-            if (err.message == "same_email"){
-                ret.message = "ERROR";
-                ret.data = "Used Email";
-                res.status(400).json(ret);
-                return router;
-            }else if(err.message == "invalid_user"){
-                ret.message = "ERROR";
-                ret.data = "Invalid User ID";
-                res.status(404).json(ret);
-                return router;
-            }else{
-                ret.message = "ERROR";
-                ret.data = "Server Error";
-                res.json(500, ret);
+        } 
+        // avoid same email
+        users = await User.find({email:params['email']}).catch(err=>{console.log(err);});
+        users.forEach(user=>{
+            if(user._id.toString()!=id){
+                res.status(400).send({
+                    "message":"ERROR",
+                    "data":"Invalid Email"
+                });
                 return router;
             }
         });
+
+        // handle old pendingTasks
+        // var user = await User.findById(id).catch(error=>{console.log(user);});
+        var old_tasks = user.pendingTasks;
+
+
+        old_tasks.forEach(async task=>{
+            old_task = await Task.findByIdAndUpdate(task, {$set:{"assignedUser":'', "assignedUserName":"unassigned"}}).catch(err=>{console.log(err);});
+        });
+
+        // handle new pendingTasks (validation)
+        var new_tasks = params.pendingTasks;
+        var new_tasks_list = [];
+        
+        await Promise.all(new_tasks.map(async taskId=>{
+            tasks = await Task.findById(taskId).catch(err=>{
+                console.log(err);
+            });
+            return tasks;
+        })).then(async tasks=>{
+            console.log(tasks);
+            await tasks.forEach(task=>{
+                if (task!=null){console.log(task._id);new_tasks_list.push(task._id);}
+            });
+            params.pendingTasks = new_tasks_list;
+        });
+
+        
+        // // handle user
+        var updated_user = await User.findByIdAndUpdate(id, params).then(user=>{
+            res.status(201).send({
+                    "message":"OK",
+                    "data": user
+                });
+        }).catch(err=>{console.log(err);});
+        return router;
+
+      
 	});
 
 	// DELETE
