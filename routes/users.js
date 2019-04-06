@@ -1,5 +1,6 @@
 var secrets = require('../config/secrets');
 var User = require('../models/user');
+var Task = require('../models/task');
 
 module.exports = function (router) {
     var userRoute = router.route('/users');
@@ -13,7 +14,7 @@ module.exports = function (router) {
         var params = {
             'name':req.param('name'),
             "email":req.param('email'),
-            "pendingTasks":req.param('pendingTasks'),
+            "pendingTasks":JSON.parse(req.query.pendingTasks),
             "dateCreated":date,
         }
 
@@ -39,50 +40,84 @@ module.exports = function (router) {
             });
         });
 
-        //promie all
-        same_email_promise.then(response => {
-            if (response!==null){
-                throw new Error("same_email");
-            }
-        }).then(response=>{
-            //save new user
-            var promise = new Promise(function(resolve, reject){
-                var new_user = new User(params);
-                new_user.save(function(err, new_user){
-                    if (err) {
-                        ret.message = "ERROR";
-                        ret.data = "DB Error";
-                        res.json(500, ret);
-                        return router;
+        // handle tasks
+        var promises = [];
+        valid_tasks_id = [];
+        console.log(params.pendingTasks);
+        for (var i = 0; i<params.pendingTasks.length;i++){
+            console.log(params.pendingTasks[i])
+            new_p = new Promise(function(resolve, reject){
+                Task.findById(params.pendingTasks[i], function(err, task){
+                    if (err){
+                        console.log(params.pendingTasks[i]);
                     }
                     else{
-                        resolve(new_user);
-                        console.log("new user");
+                        console.log(task);
+                        if(task!=null){valid_tasks_id.push(task._id);}
+                        resolve(task);
                     }
-                });
+                }).catch(err=>{});
             });
-            promise.then(response => {
-                ret.data = response;
-                ret.message = "OK";
-                res.status(201).json(ret);
-                return router;
-            });
+            promises.push(new_p);
+        }
 
-        }).catch(function(err){
-            console.log(err.message);
-            if (err.message === "same_email"){
-                ret.message = "ERROR";
-                ret.data = "Used Email";
-                res.status(400).json(ret);
-                return router;
-            }
-            else{
-                ret.message = "ERROR";
-                ret.data = "Server Error";
-                res.json(500, ret);
-                return router;
-            }
+        Promise.all(promises).then(tasks=>{
+
+            params.pendingTasks = valid_tasks_id;
+            console.log(params.pendingTasks);
+            same_email_promise.then(response => {
+                if (response!==null){
+                    throw new Error("same_email");
+                }
+            }).then(response=>{
+                //save new user
+                var promise = new Promise(function(resolve, reject){
+                    var new_user = new User(params);
+                    new_user.save(function(err, new_user){
+                        if (err) {
+                            ret.message = "ERROR";
+                            ret.data = "DB Error";
+                            res.json(500, ret);
+                            return router;
+                        }
+                        else{
+                            resolve(new_user);
+                            console.log("new user");
+                        }
+                    });
+                });
+                promise.then(user => {
+                    let updatedTasks = user.pendingTasks.map(
+                        task=>
+                            Task.findOneAndUpdate({"_id":task},{$set:{assignedUser: user.id, assignedUserName: user.name}}).exec()
+                    );
+                    Promise.all(updatedTasks).then((response)=>{
+                            ret.data = user;
+                            ret.message = "OK";
+                            res.status(201).json(ret);
+                            return router;
+                    });
+                    
+                });
+            }).catch(function(err){
+                console.log(err.message);
+                if (err.message === "same_email"){
+                    ret.message = "ERROR";
+                    ret.data = "Used Email";
+                    res.status(400).json(ret);
+                    return router;
+                }
+                else{
+                    ret.message = "ERROR";
+                    ret.data = "Server Error";
+                    res.json(500, ret);
+                    return router;
+                }
+            });
         });
+       
+
+        
     });
 
     userRoute.get(function (req, res) {

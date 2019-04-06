@@ -1,5 +1,6 @@
 var secrets = require('../config/secrets');
 var Task = require('../models/task');
+var User = require('../models/user');
 
 module.exports = function (router) {
     var userRoute = router.route('/tasks');
@@ -10,6 +11,7 @@ module.exports = function (router) {
 
     // POST
     userRoute.post(function (req, res){
+        var old_user;
         var promise = new Promise(function(resolve, reject){
             var date = new Date();
             var params = {
@@ -29,17 +31,45 @@ module.exports = function (router) {
                 res.json(400, ret);
                 return router;
             }
-    
-            var new_task = new Task(params);
-            new_task.save(function(err, new_task){
-                if (err) {console.log(err);}
-                else{resolve(new_task);}
+
+            //update assignedUserName if assiggnedUser
+           
+            User.findOne({"_id":params.assignedUser}, function(err, user){
+                //undefined user
+                
+                if(user==null){
+                    params.assignedUser = "";
+                    params.assignedUserName = "unassigned"
+                }else{
+                    params.assignedUserName = user.name;
+                    old_user = user;
+                }
+            }).then(user=>{
+                var new_task = new Task(params);
+                new_task.save(function(err, task){
+                    console.log("task"+task.id);
+                    if (err) {console.log(err);}
+                    else{
+                        resolve(task);
+                    }
+                });
+            }).then((task)=>{
+                
+            }).catch(err=>{
+                console.log(err);
             });
         });
 
         promise.then(function(new_task){
+            if(old_user!=null){
+                old_user.pendingTasks.push(new_task._id);
+                old_user.save();
+            }
             ret.data = new_task;
+            ret.message = "OK";
             res.status(201).json(ret);
+        }).then(function(task){
+            
         }).catch(function(err){
             ret.message = "ERROR";
             ret.data = "Sorry! Internal Server Error";
@@ -91,6 +121,7 @@ module.exports = function (router) {
                 }  
             }).sort(sort).select(select).skip(skip).limit(limit);
         });
+        
 
         promise.then(function(tasks){
             ret.data = tasks;

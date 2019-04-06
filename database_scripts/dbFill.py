@@ -19,6 +19,7 @@ from random import randint
 from random import choice
 from datetime import date
 from time import mktime
+import requests
 
 def usage():
     print('dbFill.py -u <baseurl> -p <port> -n <numUsers> -t <numTasks>')
@@ -88,7 +89,11 @@ def main(argv):
 
         # POST the user
         conn.request("POST", "/api/users", params, headers)
-        response = conn.getresponse()
+        # response = conn.getresponse()
+        url = "http://localhost:4000/api/users?"+params
+        response = requests.post(url).json()
+        response_json = response.decode('utf-8').replace('\0', '')
+        print(response_json)
         data = response.read()
         d = json.loads(data)
         print(d)
