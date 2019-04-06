@@ -112,15 +112,20 @@ module.exports = function (router) {
             return tasks;
         })).then(async tasks=>{
             console.log(tasks);
-            await tasks.forEach(task=>{
-                if (task!=null){console.log(task._id);new_tasks_list.push(task._id);}
+            await tasks.forEach(async task=>{
+                if (task!=null){
+                    console.log(task._id);
+                    new_tasks_list.push(task._id);
+                    //handle new pendingg tasks old users
+                    var old_user = await User.findByIdAndUpdate(task.assignedUser,{$pull:{"pendingTasks":task._id}});
+                }
+
             });
             params.pendingTasks = new_tasks_list;
         });
 
-        
-        // // handle user
-        var updated_user = await User.findByIdAndUpdate(id, params).then(user=>{
+        // handle user
+        var updated_user = await User.findByIdAndUpdate(id, params, {"new":true}).then(user=>{
             res.status(201).send({
                     "message":"OK",
                     "data": user
