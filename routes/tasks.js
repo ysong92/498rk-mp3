@@ -9,72 +9,56 @@ module.exports = function (router) {
     	"data":{}
     }
 
-    // POST
-    userRoute.post(function (req, res){
+    // POST: toddo: unassigned 
+    userRoute.post(async function (req, res){
         var old_user;
-        var promise = new Promise(function(resolve, reject){
-            var date = new Date();
-            var params = {
-                'name':req.param('name'),
-                "description":req.param('description'),
-                "deadline":req.param('deadline'),
-                "completed":req.param('completed'),
-                "assignedUser":req.param('assignedUser'),
-                "assignedUserName":req.param('assignedUserName'),
-                "dateCreated":date
-            }
-
-            //validation
-            if (typeof params.name === 'undefined' || typeof params.deadline === 'undefined'){
-                ret.message = "ERROR";
-                ret.data = "Undefined task name or deadline";
-                res.json(400, ret);
-                return router;
-            }
-
-            //update assignedUserName if assiggnedUser
-           
-            User.findOne({"_id":params.assignedUser}, function(err, user){
-                //undefined user
-                
-                if(user==null){
-                    params.assignedUser = "";
-                    params.assignedUserName = "unassigned"
-                }else{
-                    params.assignedUserName = user.name;
-                    old_user = user;
-                }
-            }).then(user=>{
-                var new_task = new Task(params);
-                new_task.save(function(err, task){
-                    console.log("task"+task.id);
-                    if (err) {console.log(err);}
-                    else{
-                        resolve(task);
-                    }
-                });
-            }).then((task)=>{
-                
-            }).catch(err=>{
-                console.log(err);
-            });
-        });
-
-        promise.then(function(new_task){
-            if(old_user!=null){
-                old_user.pendingTasks.push(new_task._id);
-                old_user.save();
-            }
-            ret.data = new_task;
-            ret.message = "OK";
-            res.status(201).json(ret);
-        }).then(function(task){
+        var date = new Date();
+        var params = {
+            'name':req.param('name'),
+            "description":req.param('description'),
+            "deadline":req.param('deadline'),
+            "completed":req.param('completed'),
+            "assignedUser":req.param('assignedUser'),
+            "assignedUserName":req.param('assignedUserName'),
+            "dateCreated":date
+        }
             
-        }).catch(function(err){
+        //validation
+        if (typeof params.name === 'undefined' || typeof params.deadline === 'undefined'){
             ret.message = "ERROR";
-            ret.data = "Sorry! Internal Server Error";
-            res.status(500).json(ret);
-            console.log(err);
+            ret.data = "Undefined task name or deadline";
+            res.json(400, ret);
+            return router;
+        }
+
+        //update assignedUserName if assignedUser
+        console.log(params);
+        var assigned_user = await User.findById(params.assignedUser).then(async user=>  {
+            if(user == null){
+                //invalid assigneduser
+                params.assignedUser = "";
+                params.assignedUserName = "unassigned"
+            }else{
+                //valid assigned User
+                params.assignedUserName = user.name;
+                console.log(params);
+                //push new task to user pending task
+            }
+        }).catch(err=>{console.log(err);});
+
+        // handle new task
+        console.log(params);
+        var new_task = await new Task(params);
+        new_task.save().then(async new_task=>{
+            if (new_task.assignedUser!=""){
+                var user = await User.findByIdAndUpdate(params.assignedUser, {$push:{"pendingTasks":new_task._id}}).catch(err=>{console.log(err);});
+            }
+            return new_task;
+        }).then((new_task)=>{
+            res.status(201).send({
+                "message":"OK",
+                "data":new_task
+            });
         });
     });
 
@@ -121,7 +105,7 @@ module.exports = function (router) {
                 }  
             }).sort(sort).select(select).skip(skip).limit(limit);
         });
-        
+
 
         promise.then(function(tasks){
             ret.data = tasks;

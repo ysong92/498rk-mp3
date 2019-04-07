@@ -54,7 +54,8 @@ module.exports = function (router) {
         var params = {
             "name":req.query.name,
             "email":req.query.email,
-            "pendingTasks":JSON.parse(req.query.pendingTasks),
+            // "pendingTasks":JSON.parse(req.query.pendingTasks),
+            "pendingTasks":req.query.pendingTasks,
             "dateCreated":date
         };
 
